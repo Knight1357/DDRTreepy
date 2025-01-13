@@ -364,7 +364,7 @@ def DDRTree_reduce_dim_python(
 
         # 计算目标函数的第二部分 obj2
         major_eigen_value = get_major_eigenvalue_python(
-            X_in - W_out * Z_out, dimensions
+            X_in - W_out @ Z_out, dimensions
         )
         obj2 = major_eigen_value
         obj2 = obj2 * obj2
