@@ -558,6 +558,9 @@ Rcpp::List DDRTree_reduce_dim(SEXP R_X,
 
     //Rcpp::Rcout << "Mapping verbose" << std::endl;
 
+    if (verbose)
+        Rcpp::Rcout << "FFFFFFFFFFUUUUUUUUUUCCCCCCCCCCKKKKKKKKKKUUUUUUUUUUUUU" << std::endl;
+
     bool verbose = as<bool>(R_verbose);
 
     if (verbose)
