@@ -1,4 +1,4 @@
-Package: DDRTreepy
+Package: DDRTree
 Type: Package
 Title: Learning Principal Graphs with DDRTree
 Version: 0.1.5
