@@ -132,12 +132,22 @@ void DDRTree_reduce_dim_cpp(const MatrixXd &X_in,
                             MatrixXd &R,
                             std::vector<double> &objective_vals)
 {
+    if (verbose) {
+        Rcpp::Rcout << "Entering DDRTree_reduce_dim_cpp function." << std::endl;
+        Rcpp::Rcout << "Input Dimensions - X: " << X_in.rows() << "x" << X_in.cols() 
+                    << ", Y: " << Y_in.rows() << "x" << Y_in.cols() 
+                    << ", W: " << W_in.rows() << "x" << W_in.cols() 
+                    << ", Z: " << Z_in.rows() << "x" << Z_in.cols() << std::endl;
+    }
 
     Y_out = Y_in;
     W_out = W_in;
     Z_out = Z_in;
 
     int N_cells = X_in.cols();
+    if (verbose) {
+        Rcpp::Rcout << "Number of cells: " << N_cells << std::endl;
+    }
     /*
         typedef boost::property<boost::edge_weight_t, double> EdgeWeightProperty;
         typedef boost::adjacency_matrix<
@@ -167,6 +177,10 @@ void DDRTree_reduce_dim_cpp(const MatrixXd &X_in,
     typedef boost::graph_traits<Graph>::edge_iterator edge_iter;
 
     Graph g(Y_in.cols());
+    if (verbose) {
+        Rcpp::Rcout << "Constructing the adjacency graph." << std::endl;
+    }
+
     // property_map<Graph, edge_weight_t>::type weightmap = get(edge_weight, g);
     for (std::size_t j = 0; j < Y_in.cols(); ++j)
     {
@@ -177,16 +191,29 @@ void DDRTree_reduce_dim_cpp(const MatrixXd &X_in,
                 Edge e;
                 bool inserted;
                 tie(e, inserted) = add_edge(i, j, g);
+                if (verbose && inserted) {
+                    Rcpp::Rcout << "Added edge (" << i << ", " << j << ") in the graph." << std::endl;
+                }
             }
         }
+    }
+
+    if (verbose) {
+        Rcpp::Rcout << "Graph constructed with " << num_edges(g) << " edges." << std::endl;
     }
 
     boost::property_map<Graph, boost::edge_weight_t>::type EdgeWeightMap = get(boost::edge_weight_t(), g);
 
     MatrixXd B = MatrixXd::Zero(Y_in.cols(), Y_in.cols());
+    if (verbose) {
+        Rcpp::Rcout << "Initialized matrix B with zeros." << std::endl;
+    }
 
     std::vector<graph_traits<Graph>::vertex_descriptor>
         old_spanning_tree(num_vertices(g));
+    if (verbose) {
+        Rcpp::Rcout << "Initialized old spanning tree with " << old_spanning_tree.size() << " vertices." << std::endl;
+    }
 
     // std::vector<double> objective_vals;
 
@@ -207,6 +234,9 @@ void DDRTree_reduce_dim_cpp(const MatrixXd &X_in,
 
     // SpMat R(X_in.cols(), num_clusters);
     R.resize(tmp_R.rows(), num_clusters);
+    if (verbose) {
+        Rcpp::Rcout << "Resized matrices for distance calculations." << std::endl;
+    }
 
     // SpMat Gamma(R.cols(), R.cols());
     MatrixXd Gamma = MatrixXd::Zero(R.cols(), R.cols());
@@ -221,6 +251,9 @@ void DDRTree_reduce_dim_cpp(const MatrixXd &X_in,
 
     MatrixXd C;
     C.resize(X_in.rows(), Q.cols());
+    if (verbose) {
+        Rcpp::Rcout << "Matrix C initialized with dimensions: " << C.rows() << "x" << C.cols() << std::endl;
+    }
 
     MatrixXd tmp1;
     tmp1.resize(C.rows(), X_in.rows());
@@ -229,6 +262,9 @@ void DDRTree_reduce_dim_cpp(const MatrixXd &X_in,
     Function pca_projection_R = stats["pca_projection_R"];
 
     Function get_major_eigenvalue = stats["get_major_eigenvalue"];
+    if (verbose) {
+        Rcpp::Rcout << "External function references established." << std::endl;
+    }
 
     for (int iter = 0; iter < maxIter; ++iter)
     {
