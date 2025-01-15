@@ -6,18 +6,18 @@ from scipy.stats import norm  # 用于计算正态分布分位数
 from scipy.sparse.linalg import splu, svds, spsolve  # 近似奇异值分解，类似于R中的irlba
 from sklearn.cluster import KMeans
 from loguru import logger
-from utils import time_func
+from utils import *
 import networkx as nx
 from scipy.sparse import lil_matrix, csr_matrix, csc_matrix
-
+from sklearn.utils.extmath import randomized_svd
 
 @time_func
 def pca_projection_python(C, L):
     logger.warning(f"开始python pca降维")
     # C: 用于PCA的数据矩阵
     # L: 要计算的主成分的数量
+    
     num_features, num_samples = C.shape
-
     # 判断L是否大于等于矩阵C的最小维度
     if L >= min(num_features, num_samples):
         # 计算矩阵C的特征值和特征向量
@@ -47,6 +47,24 @@ def pca_projection_python(C, L):
         logger.warning(f"结束python pca降维")
         # 返回前L个右奇异向量（在R中是V）
         return vt.T
+        # Check if number of components requested is less than the min dimension
+    # if L >= min(C.shape):
+    #     # Eigenvalue decomposition
+    #     cov_matrix = np.cov(C, rowvar=False)
+    #     eigenvalues, eigenvectors = eigh(cov_matrix)
+
+    #     # Sort eigenvalues and eigenvectors
+    #     eig_sort_idx = np.argsort(eigenvalues)[::-1]
+    #     eig_idx = eig_sort_idx[:L]
+
+    #     # Select top L eigenvectors
+    #     W = eigenvectors[:, eig_idx]
+    #     return W
+    # else:
+    #     # Use randomized SVD for larger datasets
+    #     initial_v = np.quantile(np.random.rand(len(C[0])), q=np.linspace(0, 1, len(C[0])+1))[1:len(C[0])+1]
+    #     U, S, Vt = randomized_svd(C, n_components=L, random_state=42)
+    #     return Vt.T
 
 
 @time_func
@@ -172,7 +190,7 @@ def DDRTree_reduce_dim_python(
                 g.add_edge(i, j)  # 添加边
 
     if verbose:
-        logger.info("构造完全图完成")
+        logger.info(f"构造完全图完成，节点数量: {g.number_of_nodes()}，边数量: {g.number_of_edges()}")
 
     # 权重矩阵的初始化为零矩阵
     B = np.zeros((Y_in.shape[1], Y_in.shape[1]))  # Y_in 列数为图的节点数
@@ -218,7 +236,10 @@ def DDRTree_reduce_dim_python(
         distsqMU = sqdist_python(Y_out, Y_out)
 
         if verbose:
-            logger.info(f"distsqMU: {distsqMU}")
+            # 打印 distsqMU 的前十个元素
+            logger.info("distsqMU (first 10 elements):")
+            
+            print_matrix_elements(distsqMU)
 
         if verbose:
             logger.info("正在更新图中的边权重...")
@@ -231,19 +252,25 @@ def DDRTree_reduce_dim_python(
                 weight = distsqMU[u, v]
                 # 更新边权重
                 g[u][v]["weight"] = weight
+                
                 # 如果需要调试信息，打印更新的权重
                 # if verbose:
                 #     logger.info(f"边 ({u}, {v}) 的权重更新为: {weight}")
 
         if verbose:
-            logger.info("计算最小生成树 (MST)")
+            logger.info("所有边的权重已更新，开始计算最小生成树 (MST)")
 
         # 使用 networkx 提供的 Prim 算法计算 MST
         mst = nx.minimum_spanning_tree(g, algorithm="prim")  # 最小生成树
+        
+        if verbose:
+            logger.info(f"最小生成树计算完成，节点数量: {g.number_of_nodes()}，边数量: {g.number_of_edges()}")  # 输出最小生成树的边
+        
         spanning_tree = list(nx.to_dict_of_lists(mst).values())  # 转换为简单的MST结构
 
         if verbose:
             logger.info("Refreshing B matrix")
+            logger.info("B matrix refreshed successfully.")
 
         # 更新邻接矩阵 B，先清除旧的边
         for ei in range(len(old_spanning_tree)):
@@ -260,8 +287,13 @@ def DDRTree_reduce_dim_python(
                 B[source, target] = 1
                 B[target, source] = 1
 
+        # if verbose:
+        #     logger.info(f"   B : ({B.shape[0]} x {B.shape[1]})")
+
         if verbose:
             logger.info(f"   B : ({B.shape[0]} x {B.shape[1]})")
+            print_matrix_elements(B)
+
 
         # 保存当前的MST结构
         old_spanning_tree = spanning_tree
@@ -289,6 +321,8 @@ def DDRTree_reduce_dim_python(
             logger.info(
                 f"   distZY: ({distZY.shape[0]} x {distZY.shape[1]}), 最大值: {np.max(distZY)}"
             )
+            
+            print_matrix_elements(distZY)
 
         if verbose:
             logger.info(f"   min_dist: ({min_dist.shape[0]} x {min_dist.shape[1]})")
@@ -298,7 +332,7 @@ def DDRTree_reduce_dim_python(
 
         if verbose:
             logger.info("distZY_minCoeff:")
-            logger.info(distZY_minCoeff)
+            print_matrix_elements(distZY_minCoeff)
 
         # 将最小值复制到 min_dist 的每一列
         for i in range(min_dist.shape[1]):
@@ -313,14 +347,14 @@ def DDRTree_reduce_dim_python(
 
         if verbose:
             logger.info("tmp_distZY:")
-            logger.info(tmp_distZY)
+            print_matrix_elements(tmp_distZY)
 
         # 计算 tmp_R = exp(-tmp_distZY / sigma)
         tmp_R = np.exp(-tmp_distZY / sigma)
 
         if verbose:
             logger.info(f"tmp_R: ({tmp_R.shape[0]} x {tmp_R.shape[1]})")
-            logger.info(tmp_R)
+            print_matrix_elements(tmp_R)
 
         # 数值检查：确保 tmp_R 中没有 NaN 或 Inf
         if not np.all(np.isfinite(tmp_R)):
@@ -340,7 +374,7 @@ def DDRTree_reduce_dim_python(
 
         if verbose:
             logger.info(f"R: ({R.shape[0]} x {R.shape[1]})")
-            logger.info(R)
+            print_matrix_elements(R)
 
         # 更新 Gamma 矩阵，对角元素是 R 的列和
         Gamma = np.zeros((R.shape[1], R.shape[1]))
@@ -348,7 +382,7 @@ def DDRTree_reduce_dim_python(
 
         if verbose:
             logger.info(f"Gamma: ({Gamma.shape[0]} x {Gamma.shape[1]})")
-            logger.info(Gamma)
+            print_matrix_elements(Gamma)
 
         # 计算目标函数的第一部分 obj1
         x1 = np.log(np.sum(np.exp(-distZY / sigma), axis=1))
@@ -376,10 +410,23 @@ def DDRTree_reduce_dim_python(
         )
 
         if verbose:
+            logger.info(f"get_major_eigenvalue_python: {major_eigen_value}")
+            logger.info(f"lambda_: {lambda_}")
+            
+            tmp = lambda_ * np.sum(np.diagonal(np.dot(Y_out, np.dot(L, Y_out.T))))
+            logger.info(f"lambda_ * np.sum(np.diagonal(np.dot(Y_out, np.dot(L, Y_out.T)))): {tmp}")
+            
+            logger.info(f"gamma: {gamma}")
+            logger.info(f"obj1: {obj1}")
+            
+            logger.info(f"gamma * obj1: {gamma * obj1}")
+            
             logger.info(f"obj2: {obj2}")
+            
 
         if verbose:
             logger.info(f"   L : ( {L.shape[0]} x {L.shape[1]} )")
+            # print_matrix_elements(L)
 
         # 更新目标函数值列表
         objective_vals.append(obj2)
@@ -441,6 +488,7 @@ def DDRTree_reduce_dim_python(
 
         if verbose:
             logger.info(f"tmp_dense: ( {tmp_dense.shape[0]} x {tmp_dense.shape[1]} )")
+            print_matrix_elements(tmp_dense)
 
         if verbose:
             logger.info(f"Computing Q: ( {Q.shape[0]} x {Q.shape[1]} )")
@@ -458,21 +506,39 @@ def DDRTree_reduce_dim_python(
 
         # 计算临时矩阵 tmp1
         tmp1 = np.dot(Q, X_in.T)
+        if verbose:
+            logger.info(f"W size: ( {tmp1.shape[0]} x {tmp1.shape[1]} )")
+            print_matrix_elements(tmp1)
 
         if verbose:
             logger.info("Computing W")
 
+        tmp = (tmp1 + tmp1.T) / 2
+        
+        if verbose:
+            logger.info(f"W size: ( {tmp.shape[0]} x {tmp.shape[1]} )")
+            print_matrix_elements(tmp)
+        
         # PCA 投影：计算 W 矩阵
         W = pca_projection_python((tmp1 + tmp1.T) / 2, dimensions)
+        # W = -W
 
         # 更新 W_out
         W_out = W
+        
+        if verbose:
+            logger.info(f"W_out size: ( {W_out.shape[0]} x {W_out.shape[1]} )")
+            print_matrix_elements(W_out)
 
         if verbose:
             logger.info("Computing Z")
 
         # 计算 Z 矩阵
         Z_out = np.dot(W_out.T, C)
+        
+        if verbose:
+            logger.info(f"Z_out size: ( {Z_out.shape[0]} x {Z_out.shape[1]} )")
+            print_matrix_elements(Z_out)
 
         if verbose:
             logger.info("Computing Y")
@@ -481,6 +547,10 @@ def DDRTree_reduce_dim_python(
         # Y_out = t(solve((lambda / gamma * L + Gamma), t(Z %*% R)))
         Y_out = (lambda_ / gamma) * L + Gamma
         Y_out = spsolve(Y_out, np.dot(Z_out, R).T).T  # 稀疏矩阵解法
+        
+        if verbose:
+            logger.info(f"Y_out size: ( {Y_out.shape[0]} x {Y_out.shape[1]} )")
+            print_matrix_elements(Y_out)
 
     if verbose:
         logger.info("Clearing MST sparse matrix")

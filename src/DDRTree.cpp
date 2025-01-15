@@ -191,9 +191,9 @@ void DDRTree_reduce_dim_cpp(const MatrixXd &X_in,
                 Edge e;
                 bool inserted;
                 tie(e, inserted) = add_edge(i, j, g);
-                if (verbose && inserted) {
-                    Rcpp::Rcout << "Added edge (" << i << ", " << j << ") in the graph." << std::endl;
-                }
+                // if (verbose && inserted) {
+                //     Rcpp::Rcout << "Added edge (" << i << ", " << j << ") in the graph." << std::endl;
+                // }
             }
         }
     }
@@ -273,11 +273,36 @@ void DDRTree_reduce_dim_cpp(const MatrixXd &X_in,
         if (verbose)
             Rcpp::Rcout << "Iteration: " << iter << std::endl;
 
+        // 计算距离平方矩阵
         sq_dist_cpp(Y_out, Y_out, distsqMU);
-        // Rcpp::Rcout << "distsqMU: " << distsqMU<< std::endl;
-        std::pair<edge_iter, edge_iter> edgePair;
+        // if (verbose)
+        //     Rcpp::Rcout << "distsqMU: " << distsqMU << std::endl;
+
         if (verbose)
-            Rcpp::Rcout << "updating weights in graph" << std::endl;
+        {
+            Rcpp::Rcout << "distsqMU (first 10 elements): " << std::endl;
+
+            // 确保只打印前十个元素
+            int count = 0;
+            int rows = distsqMU.rows();
+            int cols = distsqMU.cols();
+            
+            // 遍历矩阵元素，并限制输出到前十个
+            for (int i = 0; i < rows && count < 10; ++i) {
+                for (int j = 0; j < cols && count < 10; ++j) {
+                    Rcpp::Rcout << distsqMU(i, j) << " ";
+                    count++;
+                }
+            }
+            Rcpp::Rcout << std::endl;  // 换行
+        }
+
+        std::pair<edge_iter, edge_iter> edgePair;
+
+        if (verbose)
+            Rcpp::Rcout << "Updating weights in graph..." << std::endl;
+        
+        // 遍历图中的每一条边
         for (edgePair = edges(g); edgePair.first != edgePair.second; ++edgePair.first)
         {
             if (source(*edgePair.first, g) != target(*edgePair.first, g))
@@ -291,11 +316,20 @@ void DDRTree_reduce_dim_cpp(const MatrixXd &X_in,
             spanning_tree(num_vertices(g));
 
         if (verbose)
-            Rcpp::Rcout << "Finding MST" << std::endl;
+            Rcpp::Rcout << "Finding minimum spanning tree (MST)..." << std::endl;
+        
         prim_minimum_spanning_tree(g, &spanning_tree[0]);
 
+        if (verbose) {
+            Rcpp::Rcout << "prim_minimum_spanning_tree " << num_edges(g) << " edges." << std::endl;
+        }
+
         if (verbose)
-            Rcpp::Rcout << "Refreshing B matrix" << std::endl;
+            Rcpp::Rcout << "MST found, edges in the spanning tree: " << std::endl;
+
+        if (verbose)
+            Rcpp::Rcout << "Refreshing B matrix..." << std::endl;
+
         // update the adjacency matrix. First, erase the old edges
         for (size_t ei = 0; ei < old_spanning_tree.size(); ++ei)
         {
@@ -314,9 +348,26 @@ void DDRTree_reduce_dim_cpp(const MatrixXd &X_in,
                 B(spanning_tree[ei], ei) = 1;
             }
         }
-        // Rcpp::Rcout << "B: " << std::endl << B << std::endl;
-        if (verbose)
-            Rcpp::Rcout << "   B : (" << B.rows() << " x " << B.cols() << ")" << std::endl;
+
+        // if (verbose)
+        //     Rcpp::Rcout << "B: " << std::endl << B << std::endl;
+
+        // if (verbose)
+        //     Rcpp::Rcout << "B matrix size: (" << B.rows() << " x " << B.cols() << ")" << std::endl;
+
+        if (verbose) {
+            Rcpp::Rcout << "B matrix size: (" << B.rows() << " x " << B.cols() << ")" << std::endl;
+
+            // 打印 B 矩阵的前十个元素
+            Rcpp::Rcout << "B matrix (first 10 elements):" << std::endl;
+            size_t count = 0;
+            for (size_t i = 0; i < B.rows() && count < 10; ++i) {
+                for (size_t j = 0; j < B.cols() && count < 10; ++j) {
+                    Rcpp::Rcout << "B[" << i << ", " << j << "] = " << B(i, j) << std::endl;
+                    count++;
+                }
+            }
+        }
 
         old_spanning_tree = spanning_tree;
 
@@ -327,6 +378,29 @@ void DDRTree_reduce_dim_cpp(const MatrixXd &X_in,
         // Rcpp::Rcout << "   Y_out nan check : (" << Y_out.rows() << "x" << Y_out.cols() << ", " << Y_out.maxCoeff() << " )" << std::endl;
 
         sq_dist_cpp(Z_out, Y_out, distZY);
+
+        if (verbose)
+        {
+
+            Rcpp::Rcout << "R matrix size: (" << R.rows() << " x " << R.cols() << ")" << std::endl;
+            Rcpp::Rcout << "distZY (first 10 elements): " << std::endl;
+
+            // 确保只打印前十个元素
+            int count = 0;
+            int rows = distZY.rows();
+            int cols = distZY.cols();
+            
+            // 遍历矩阵元素，并限制输出到前十个
+            for (int i = 0; i < rows && count < 10; ++i) {
+                for (int j = 0; j < cols && count < 10; ++j) {
+                    Rcpp::Rcout << distZY(i, j) << " ";
+                    count++;
+                }
+            }
+            Rcpp::Rcout << std::endl;  // 换行
+        }
+
+
         // Rcpp::Rcout << "   distZY nan check : (" << distZY.maxCoeff() << " )" << std::endl;
         if (verbose)
             Rcpp::Rcout << "   distZY : (" << distZY.rows() << " x " << distZY.cols() << ")" << std::endl;
@@ -370,6 +444,27 @@ void DDRTree_reduce_dim_cpp(const MatrixXd &X_in,
         R = (tmp_R.array() / R.array()).matrix();
         // Rcpp::Rcout << R << std::endl;
 
+        if (verbose){
+
+
+            Rcpp::Rcout << "R (first 10 elements): " << std::endl;
+
+            // 确保只打印前十个元素
+            int count = 0;
+            int rows = R.rows();
+            int cols = R.cols();
+            
+            // 遍历矩阵元素，并限制输出到前十个
+            for (int i = 0; i < rows && count < 10; ++i) {
+                for (int j = 0; j < cols && count < 10; ++j) {
+                    Rcpp::Rcout << R(i, j) << " ";
+                    count++;
+                }
+            }
+            Rcpp::Rcout << std::endl;  // 换行            
+        }
+
+
         if (verbose)
             Rcpp::Rcout << "   Gamma : (" << Gamma.rows() << " x " << Gamma.cols() << ")" << std::endl;
         // Gamma <- matrix(rep(0, ncol(R) ^ 2), nrow = ncol(R))
@@ -383,7 +478,7 @@ void DDRTree_reduce_dim_cpp(const MatrixXd &X_in,
         VectorXd x1 = (tmp_distZY.array() / -sigma).exp().rowwise().sum().log();
         // Rcpp::Rcout << "Computing x1 " << x1.transpose() << std::endl;
         double obj1 = -sigma * (x1 - min_dist.col(0) / sigma).sum();
-        // Rcpp::Rcout << obj1 << std::endl;
+        Rcpp::Rcout << "obj1: " << obj1 << std::endl;
 
         // obj2 <- (norm(X - W %*% Z, '2'))^2 + params$lambda * sum(diag(Y %*% L %*% t(Y))) + params$gamma * obj1 #sum(diag(A))
         // Rcpp:Rcout << X_in - W_out * Z_out << std::endl;
@@ -394,7 +489,7 @@ void DDRTree_reduce_dim_cpp(const MatrixXd &X_in,
             Rcpp::Rcout << "   W : (" << W_out.rows() << " x " << W_out.cols() << ")" << std::endl;
             Rcpp::Rcout << "   Z : (" << Z_out.rows() << " x " << Z_out.cols() << ")" << std::endl;
         }
-        double major_eigen_value = as<double>(get_major_eigenvalue(X_in - W_out * Z_out, dimensions));
+        double major_eigen_value = as<double>(get_major_eigenvalue(X_in - W_out * Z_out, dimensions));\
         double obj2 = major_eigen_value;
         // Rcpp::Rcout << "norm = " << obj2 << std::endl;
         obj2 = obj2 * obj2;
@@ -405,8 +500,24 @@ void DDRTree_reduce_dim_cpp(const MatrixXd &X_in,
         }
 
         obj2 = obj2 + lambda * (Y_out * L * Y_out.transpose()).diagonal().sum() + gamma * obj1;
+
+
+        if (verbose){
+            Rcpp::Rcout << "get_major_eigenvalue: " << major_eigen_value << std::endl;
+            Rcpp::Rcout << "lambda: " << lambda << std::endl;
+
+            double tmp = lambda * (Y_out * L * Y_out.transpose()).diagonal().sum();
+            Rcpp::Rcout << "lambda * (Y_out * L * Y_out.transpose()).diagonal().sum(): " << tmp << std::endl;
+            Rcpp::Rcout << "gamma: " << gamma << std::endl;
+            Rcpp::Rcout << "obj1: " << obj1 << std::endl;
+            Rcpp::Rcout << "gamma * obj1: " << gamma * obj1 << std::endl;
+
+            Rcpp::Rcout << "obj2: " << obj2 << std::endl;
+
+        }
+
         // Rcpp::Rcout << obj2 << std::endl;
-        // Rcpp::Rcout << "obj2 = " << obj2 << std::endl;
+        
         objective_vals.push_back(obj2);
 
         if (verbose)
@@ -473,8 +584,25 @@ void DDRTree_reduce_dim_cpp(const MatrixXd &X_in,
         }
 
         // tmp_dense = tmp_dense.llt().solve(R.transpose()).transpose();
-        if (verbose)
-            Rcpp::Rcout << "tmp_dense " << tmp_dense.rows() << "x" << tmp_dense.cols() << ") " << std::endl;
+        if (verbose){
+            Rcpp::Rcout << "tmp_dense (" << tmp_dense.rows() << "x" << tmp_dense.cols() << ") " << std::endl;
+            Rcpp::Rcout << "tmp_dense (first 10 elements): " << std::endl;
+
+            // 确保只打印前十个元素
+            int count = 0;
+            int rows = tmp_dense.rows();
+            int cols = tmp_dense.cols();
+            
+            // 遍历矩阵元素，并限制输出到前十个
+            for (int i = 0; i < rows && count < 10; ++i) {
+                for (int j = 0; j < cols && count < 10; ++j) {
+                    Rcpp::Rcout << tmp_dense(i, j) << " ";
+                    count++;
+                }
+            }
+            Rcpp::Rcout << std::endl;  // 换行   
+        }
+            
 
         if (verbose)
             Rcpp::Rcout << "Computing Q " << Q.rows() << "x" << Q.cols() << ") " << std::endl;
@@ -538,6 +666,25 @@ void DDRTree_reduce_dim_cpp(const MatrixXd &X_in,
 
         tmp1 = Q * X_in.transpose();
 
+        if (verbose) {
+            Rcpp::Rcout << "tmp1 (" << tmp1.rows() << "x" << tmp1.cols() << ") " << std::endl;
+            Rcpp::Rcout << "tmp1 (first 10 elements): " << std::endl;
+
+            // 确保只打印前十个元素
+            int count = 0;
+            int rows = tmp1.rows();
+            int cols = tmp1.cols();
+            
+            // 遍历矩阵元素，并限制输出到前十个
+            for (int i = 0; i < rows && count < 10; ++i) {
+                for (int j = 0; j < cols && count < 10; ++j) {
+                    Rcpp::Rcout << tmp1(i, j) << " ";
+                    count++;
+                }
+            }
+            Rcpp::Rcout << std::endl;  // 换行   
+        }
+
         /////////////////////////
 
         // Rcpp::Rcout << tmp1 << std::endl;
@@ -553,6 +700,27 @@ void DDRTree_reduce_dim_cpp(const MatrixXd &X_in,
         }
 
         // W <- pca_projection_R((tmp1 + t(tmp1)) / 2, params$dim)
+        
+        MatrixXd tmp11 = (tmp1 + tmp1.transpose()) / 2;
+        
+        if (verbose) {
+            Rcpp::Rcout << "tmp11 (" << tmp11.rows() << "x" << tmp11.cols() << ") " << std::endl;
+            Rcpp::Rcout << "tmp11 (first 10 elements): " << std::endl;
+
+            // 确保只打印前十个元素
+            int count = 0;
+            int rows = tmp11.rows();
+            int cols = tmp11.cols();
+            
+            // 遍历矩阵元素，并限制输出到前十个
+            for (int i = 0; i < rows && count < 10; ++i) {
+                for (int j = 0; j < cols && count < 10; ++j) {
+                    Rcpp::Rcout << tmp11(i, j) << " ";
+                    count++;
+                }
+            }
+            Rcpp::Rcout << std::endl;  // 换行   
+        }
 
         NumericMatrix W_R = pca_projection_R((tmp1 + tmp1.transpose()) / 2, dimensions);
         const int X_n = W_R.nrow(), X_p = W_R.ncol();
@@ -562,11 +730,49 @@ void DDRTree_reduce_dim_cpp(const MatrixXd &X_in,
         // pca_projection_cpp((tmp1 + tmp1.transpose()) / 2, dimensions, W_out);
         // Rcpp::Rcout << W_out << std::endl;
 
+        if (verbose) {
+            Rcpp::Rcout << "W_out (" << W_out.rows() << "x" << W_out.cols() << ") " << std::endl;
+            Rcpp::Rcout << "W_out (first 10 elements): " << std::endl;
+
+            // 确保只打印前十个元素
+            int count = 0;
+            int rows = W_out.rows();
+            int cols = W_out.cols();
+            
+            // 遍历矩阵元素，并限制输出到前十个
+            for (int i = 0; i < rows && count < 10; ++i) {
+                for (int j = 0; j < cols && count < 10; ++j) {
+                    Rcpp::Rcout << W_out(i, j) << " ";
+                    count++;
+                }
+            }
+            Rcpp::Rcout << std::endl;  // 换行   
+        }
+
         if (verbose)
             Rcpp::Rcout << "Computing Z" << std::endl;
         // Z <- t(W) %*% C
         Z_out = W_out.transpose() * C;
         // Rcpp::Rcout << Z_out << std::endl;
+
+        if (verbose) {
+            Rcpp::Rcout << "Z_out (" << Z_out.rows() << "x" << Z_out.cols() << ") " << std::endl;
+            Rcpp::Rcout << "Z_out (first 10 elements): " << std::endl;
+
+            // 确保只打印前十个元素
+            int count = 0;
+            int rows = Z_out.rows();
+            int cols = Z_out.cols();
+            
+            // 遍历矩阵元素，并限制输出到前十个
+            for (int i = 0; i < rows && count < 10; ++i) {
+                for (int j = 0; j < cols && count < 10; ++j) {
+                    Rcpp::Rcout << Z_out(i, j) << " ";
+                    count++;
+                }
+            }
+            Rcpp::Rcout << std::endl;  // 换行   
+        }
 
         if (verbose)
             Rcpp::Rcout << "Computing Y" << std::endl;
@@ -574,6 +780,24 @@ void DDRTree_reduce_dim_cpp(const MatrixXd &X_in,
         Y_out = L * (lambda / gamma) + Gamma;
         Y_out = Y_out.llt().solve((Z_out * R).transpose()).transpose();
 
+        if (verbose) {
+            Rcpp::Rcout << "Y_out (" << Y_out.rows() << "x" << Y_out.cols() << ") " << std::endl;
+            Rcpp::Rcout << "Y_out (first 10 elements): " << std::endl;
+
+            // 确保只打印前十个元素
+            int count = 0;
+            int rows = Y_out.rows();
+            int cols = Y_out.cols();
+            
+            // 遍历矩阵元素，并限制输出到前十个
+            for (int i = 0; i < rows && count < 10; ++i) {
+                for (int j = 0; j < cols && count < 10; ++j) {
+                    Rcpp::Rcout << Y_out(i, j) << " ";
+                    count++;
+                }
+            }
+            Rcpp::Rcout << std::endl;  // 换行   
+        }
         // Rcpp::Rcout << Y_out << std::endl;
     }
 

@@ -25,15 +25,13 @@ eps = 1e-3          # 收敛阈值
 verbose = True      # 是否输出详细信息
 
 # 指定CSV文件路径
-# R_X_path = "/mnt/ssd/geneplus/develop/liushen/projects/DDRTreepy/tests/data/R_X.csv"
-R_X_path = "/mnt/ssd/geneplus/develop/liushen/projects/DDRTreepy/tests/data/output_matrix.csv"
+R_X_path = "/mnt/ssd/geneplus/develop/liushen/projects/DDRTreepy/tests/data/random_matrix.csv"
 
 # 使用pandas读取CSV文件
 df = pd.read_csv(R_X_path, header=None)  # header=None表示不将第一行作为列名
 X_R = df.values  # 或使用 df.to_numpy()
 
-result = DDRTree_python(X_R, maxIter = 20, verbose=True)
+result = pca_projection_python(X_R, dimensions)
 
-
-# print(result)
+print(result)
 
